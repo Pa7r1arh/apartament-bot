@@ -1,4 +1,4 @@
-// search.js — РАБОТАЕТ НА RENDER.COM (puppeteer-core + /usr/bin/google-chrome)
+// search.js — РАБОТАЕТ НА RENDER.COM (puppeteer-core + /usr/bin/google-chrome-stable)
 require('dotenv').config();
 const puppeteer = require('puppeteer-core');
 const TelegramBot = require('node-telegram-bot-api');
@@ -48,7 +48,7 @@ async function sendReport(message, photos = []) {
 async function parseCian(filter) {
     console.log(`Парсим Циан: ${filter.rooms}-комн, до ${filter.price}...`);
     const browser = await puppeteer.launch({
-        executablePath: '/usr/bin/google-chrome',
+        executablePath: '/usr/bin/google-chrome-stable',
         headless: true,
         args: [
             '--no-sandbox',
@@ -112,7 +112,7 @@ async function parseCian(filter) {
 async function parseAvito(filter) {
     console.log(`Парсим Авито: ${filter.rooms}-комн, до ${filter.price}...`);
     const browser = await puppeteer.launch({
-        executablePath: '/usr/bin/google-chrome',
+        executablePath: '/usr/bin/google-chrome-stable',
         headless: true,
         args: [
             '--no-sandbox',
