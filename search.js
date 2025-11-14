@@ -1,7 +1,6 @@
-// search.js — РАБОТАЕТ НА RENDER.COM
+// search.js — РАБОТАЕТ НА RENDER.COM (PUPPETEER + --no-sandbox)
 require('dotenv').config();
-const puppeteer = require('puppeteer-core');
-const chromium = require('chrome-aws-lambda');
+const puppeteer = require('puppeteer');
 const TelegramBot = require('node-telegram-bot-api');
 const CronJob = require('cron').CronJob;
 const fs = require('fs');
@@ -11,12 +10,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = parseInt(process.env.CHAT_ID);
 
 if (!BOT_TOKEN || !CHAT_ID) {
-    console.error('ОШИБКА: Проверь .env');
+    console.error('ОШИБКА: Проверь переменные окружения (BOT_TOKEN, CHAT_ID)');
     process.exit(1);
 }
 
 const bot = new TelegramBot(BOT_TOKEN);
-const SEEN_FILE = path.join('/tmp', 'seen.txt');
+const SEEN_FILE = path.join('/tmp', 'seen.txt'); // Render использует /tmp
 let seenLinks = new Set();
 
 if (fs.existsSync(SEEN_FILE)) {
@@ -49,13 +48,22 @@ async function sendReport(message, photos = []) {
 async function parseCian(filter) {
     console.log(`Парсим Циан: ${filter.rooms}-комн, до ${filter.price}...`);
     const browser = await puppeteer.launch({
-        args: chromium.args,
-        executablePath: await chromium.executablePath,
         headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-zygote',
+            '--single-process',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process'
+        ]
     });
     const page = await browser.newPage();
 
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'ru-RU,ru;q=0.9' });
 
     const url = `https://spb.cian.ru/cat.php?deal_type=sale&engine_version=2&offer_type=flat&region=2&room${filter.rooms}=1&maxprice=${filter.price}&foot_min=20&only_foot=2`;
 
@@ -67,7 +75,7 @@ async function parseCian(filter) {
         console.log(`Найдено карточек на Циан: ${count}`);
 
         if (count === 0) {
-            await sendReport(`Отладка: Циан не показал объявления`);
+            await sendReport(`Отладка: Циан не показал объявления (возможно, блокировка)`);
             await browser.close();
             return [];
         }
@@ -100,21 +108,92 @@ async function parseCian(filter) {
     }
 }
 
-// Аналогично для Avito (можно упростить, если нужно)
+async function parseAvito(filter) {
+    console.log(`Парсим Авито: ${filter.rooms}-комн, до ${filter.price}...`);
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-zygote',
+            '--single-process'
+        ]
+    });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+
+    const url = `https://www.avito.ru/sankt-peterburg/kvartiry/prodam/vtorichka/${filter.rooms}_komnatnye-ASgBAgICAkSSA8YQ5geOUg?cd=1&foot=2&metro=20&price_max=${filter.price}`;
+
+    try {
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 40000 });
+        await new Promise(r => setTimeout(r, 8000));
+
+        const count = await page.evaluate(() => document.querySelectorAll('div[data-marker="item"]').length);
+        console.log(`Найдено карточек на Авито: ${count}`);
+
+        if (count === 0) {
+            await sendReport(`Отладка: Авито не показал объявления`);
+            await browser.close();
+            return [];
+        }
+
+        const results = await page.evaluate(() => {
+            const items = [];
+            document.querySelectorAll('div[data-marker="item"]').forEach(el => {
+                const link = el.querySelector('a[itemprop="url"]')?.href;
+                const title = el.querySelector('h3')?.innerText;
+                const price = el.querySelector('meta[itemprop="price"]')?.content;
+                const metro = el.querySelector('div[data-marker="item-address"]')?.innerText;
+                const photo = el.querySelector('img')?.src;
+
+                if (link && title && price && !title.includes('апартаменты')) {
+                    items.push({
+                        link: 'https://www.avito.ru' + link,
+                        title,
+                        price: parseInt(price).toLocaleString() + ' ₽',
+                        metro: metro?.match(/м\. .+/)?.[0] || '',
+                        area: title.match(/[\d.]+ м²/)?.[0] || '',
+                        photo
+                    });
+                }
+            });
+            return items.slice(0, 5);
+        });
+
+        console.log(`Успешно спарсил Авито: ${results.length} объявлений`);
+        await browser.close();
+        return results;
+    } catch (e) {
+        console.error('Ошибка Авито:', e.message);
+        await sendReport(`Ошибка Авито: ${e.message}`);
+        await browser.close();
+        return [];
+    }
+}
 
 async function runSearch() {
     console.log('Запуск поиска:', new Date().toLocaleString());
-    let report = `НОВЫЕ КВАРТИРЫ | ${new Date().toLocaleString('ru-RU')}\n\n`;
+    const now = new Date().toLocaleString('ru-RU');
+    let report = `НОВЫЕ КВАРТИРЫ | ${now}\n\n`;
     let foundAny = false;
     let photos = [];
 
     for (const filter of FILTERS) {
         const cianResults = await parseCian(filter);
-        const newOnes = cianResults.filter(x => !seenLinks.has(x.link));
+        const avitoResults = await parseAvito(filter);
+        const all = [...cianResults, ...avitoResults].filter(x => x.photo);
+
+        const newOnes = all.filter(x => !seenLinks.has(x.link));
         if (newOnes.length === 0) continue;
 
         foundAny = true;
-        const best = newOnes.sort((a, b) => parseInt(a.price.replace(/[^0-9]/g, '')) - parseInt(b.price.replace(/[^0-9]/g, ''))).slice(0, 3);
+        const best = newOnes.sort((a, b) => {
+            const priceA = parseInt(a.price.replace(/[^0-9]/g, ''));
+            const priceB = parseInt(b.price.replace(/[^0-9]/g, ''));
+            return priceA - priceB;
+        }).slice(0, 3);
 
         report += `${filter.name} — до ${filter.price.toLocaleString()} ₽\n`;
         best.forEach((apt, i) => {
@@ -136,6 +215,7 @@ async function runSearch() {
     console.log('Поиск завершён');
 }
 
+// === ЗАПУСК ===
 console.log('Бот запущен. Первый поиск через 15 сек...');
 setTimeout(runSearch, 15000);
 new CronJob('0 9,19 * * *', runSearch, null, true, 'Europe/Moscow');
