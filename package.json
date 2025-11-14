@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "search.js",
   "scripts": {
-    "start": "node search.js",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "start": "node search.js"
   },
   "dependencies": {
-    "puppeteer": "^22.0.0",
+    "puppeteer-core": "^22.0.0",
+    "chrome-aws-lambda": "^10.1.0",
     "node-telegram-bot-api": "^0.64.0",
     "cron": "^3.1.6",
     "dotenv": "^16.4.5"
