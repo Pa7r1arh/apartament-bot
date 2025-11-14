@@ -1,6 +1,6 @@
-// search.js — РАБОТАЕТ НА RENDER.COM (PUPPETEER + --no-sandbox)
+// search.js — РАБОТАЕТ НА RENDER.COM (puppeteer-core + /usr/bin/google-chrome)
 require('dotenv').config();
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const TelegramBot = require('node-telegram-bot-api');
 const CronJob = require('cron').CronJob;
 const fs = require('fs');
@@ -10,12 +10,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHAT_ID = parseInt(process.env.CHAT_ID);
 
 if (!BOT_TOKEN || !CHAT_ID) {
-    console.error('ОШИБКА: Проверь переменные окружения (BOT_TOKEN, CHAT_ID)');
+    console.error('ОШИБКА: Проверь BOT_TOKEN и CHAT_ID в переменных окружения');
     process.exit(1);
 }
 
 const bot = new TelegramBot(BOT_TOKEN);
-const SEEN_FILE = path.join('/tmp', 'seen.txt'); // Render использует /tmp
+const SEEN_FILE = path.join('/tmp', 'seen.txt');
 let seenLinks = new Set();
 
 if (fs.existsSync(SEEN_FILE)) {
@@ -48,6 +48,7 @@ async function sendReport(message, photos = []) {
 async function parseCian(filter) {
     console.log(`Парсим Циан: ${filter.rooms}-комн, до ${filter.price}...`);
     const browser = await puppeteer.launch({
+        executablePath: '/usr/bin/google-chrome',
         headless: true,
         args: [
             '--no-sandbox',
@@ -111,6 +112,7 @@ async function parseCian(filter) {
 async function parseAvito(filter) {
     console.log(`Парсим Авито: ${filter.rooms}-комн, до ${filter.price}...`);
     const browser = await puppeteer.launch({
+        executablePath: '/usr/bin/google-chrome',
         headless: true,
         args: [
             '--no-sandbox',
