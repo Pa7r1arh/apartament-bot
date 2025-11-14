@@ -1,14 +1,15 @@
 {
-  "name": "apartment-bot",
+  "name": "apartament-bot",
   "version": "1.0.0",
   "main": "search.js",
   "scripts": {
-    "start": "node search.js"
+    "start": "node search.js",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
-    "cron": "^3.1.6",
-    "dotenv": "^16.4.5",
+    "puppeteer": "^22.0.0",
     "node-telegram-bot-api": "^0.64.0",
-    "puppeteer": "^24.30.0"
+    "cron": "^3.1.6",
+    "dotenv": "^16.4.5"
   }
 }
