@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "search.js",
   "scripts": {
-    "start": "node search.js"
+    "start": "node search.js",
+    "postinstall": "puppeteer install"
   },
   "dependencies": {
     "puppeteer": "^22.0.0",
