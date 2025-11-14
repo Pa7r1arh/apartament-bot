@@ -6,8 +6,7 @@
     "start": "node search.js"
   },
   "dependencies": {
-    "puppeteer-core": "^22.0.0",
-    "chrome-aws-lambda": "^10.1.0",
+    "puppeteer": "^22.0.0",
     "node-telegram-bot-api": "^0.64.0",
     "cron": "^3.1.6",
     "dotenv": "^16.4.5"
